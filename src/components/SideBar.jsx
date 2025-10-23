@@ -1,74 +1,92 @@
-import {
-  House,
-  CalendarDays,
-  Inbox,
-  Folder,
-  Tag,
-  Filter,
-  CheckSquare,
-  Trash2,
-} from "lucide-react";
+import { Calendar, Inbox, CheckSquare, Trash2 } from "lucide-react";
 
-export default function Sidebar() {
+export default function Sidebar({
+  currentFilter,
+  currentListId,
+  onFilterChange,
+  onListChange,
+  lists,
+}) {
   return (
-    <div className="sidebar bg-dark text-light p-3">
-      <div className="mb-4">
-        <h5 className="fw-bold">T</h5>
+    <div className="sidebar">
+      <div className="sidebar-header">
+        <div className="user-avatar">T</div>
       </div>
 
-      <div className="menu-section mb-3">
-        <div className="menu-item active">
-          <House size={16} /> Today
+      <div className="menu-section">
+        <div
+          className={`menu-item ${currentFilter === "today" ? "active" : ""}`}
+          onClick={() => onFilterChange("today")}
+        >
+          <Calendar size={18} />
+          <span>Today</span>
+          <span className="count">7</span>
         </div>
-        <div className="menu-item">
-          <CalendarDays size={16} /> Next 7 Days
+
+        <div
+          className={`menu-item ${
+            currentFilter === "next7days" ? "active" : ""
+          }`}
+          onClick={() => onFilterChange("next7days")}
+        >
+          <Calendar size={18} />
+          <span>Next 7 Days</span>
+          <span className="count">7</span>
         </div>
-        <div className="menu-item">
-          <Inbox size={16} /> Inbox
+
+        <div
+          className={`menu-item ${currentFilter === "inbox" ? "active" : ""}`}
+          onClick={() => onFilterChange("inbox")}
+        >
+          <Inbox size={18} />
+          <span>Inbox</span>
+          <span className="count">5</span>
         </div>
       </div>
 
       <div className="menu-section">
-        <p className="text-secondary small mb-2">Lists</p>
+        <p className="section-title">Lists</p>
+        {lists.map((list) => (
+          <div
+            key={list.id}
+            className={`menu-item ${currentListId === list.id ? "active" : ""}`}
+            onClick={() => onListChange(list.id)}
+          >
+            <span className="list-icon" style={{ color: list.color }}>
+              {list.icon}
+            </span>
+            <span>{list.name}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="menu-section">
+        <p className="section-title">Tags</p>
         <div className="menu-item">
-          <Folder size={16} /> Work
+          <span className="tag-dot" style={{ background: "#ef4444" }}></span>
+          <span>Urgent</span>
         </div>
         <div className="menu-item">
-          <Folder size={16} /> Personal
-        </div>
-        <div className="menu-item">
-          <Folder size={16} /> Learning
-        </div>
-        <div className="menu-item">
-          <Folder size={16} /> Fitness
-        </div>
-        <div className="menu-item">
-          <Folder size={16} /> Wish List
+          <span className="tag-dot" style={{ background: "#f59e0b" }}></span>
+          <span>Important</span>
         </div>
       </div>
 
-      <div className="menu-section mt-4">
-        <p className="text-secondary small mb-2">Tags</p>
-        <div className="menu-item">
-          <Tag size={16} /> #Priority
+      <div className="menu-section">
+        <p className="section-title">Filters</p>
+        <div
+          className={`menu-item ${
+            currentFilter === "completed" ? "active" : ""
+          }`}
+          onClick={() => onFilterChange("completed")}
+        >
+          <CheckSquare size={18} />
+          <span>Completed</span>
         </div>
         <div className="menu-item">
-          <Tag size={16} /> #Important
+          <Trash2 size={18} />
+          <span>Trash</span>
         </div>
-      </div>
-
-      <div className="menu-section mt-4">
-        <p className="text-secondary small mb-2">Filters</p>
-        <div className="menu-item">
-          <Filter size={16} /> Completed
-        </div>
-        <div className="menu-item">
-          <Trash2 size={16} /> Trash
-        </div>
-      </div>
-
-      <div className="bottom-section mt-auto">
-        <div className="menu-item text-secondary small">⚙ Settings</div>
       </div>
     </div>
   );
