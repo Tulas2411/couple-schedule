@@ -1,60 +1,150 @@
 "use client";
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { Container, Form, Button, Card, Alert } from "react-bootstrap";
+import { useRouter } from "next/navigation";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
+import { jwtDecode } from "jwt-decode";
+import "@/styles/auth.css";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
+    setLoading(true);
 
-    // Tạm thời login giả lập
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("email", email)
-      .eq("password_hash", password)
-      .single();
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (error || !data) {
-      setMessage("Đăng nhập thất bại");
-    } else {
-      setMessage(`Xin chào, ${data.email}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.needsVerification) {
+          router.push(`/verify?email=${encodeURIComponent(email)}`);
+          return;
+        }
+        throw new Error(data.error || "Login failed");
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const decoded = jwtDecode(credentialResponse.credential);
+
+      const response = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          credential: credentialResponse.credential,
+          email: decoded.email,
+          fullName: decoded.name,
+          googleId: decoded.sub,
+          avatarUrl: decoded.picture,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Google login failed");
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Container className="mt-5" style={{ maxWidth: "400px" }}>
-      <Card className="p-4 shadow">
-        <h3 className="text-center mb-4">Đăng nhập</h3>
-        {message && <Alert variant="info">{message}</Alert>}
-        <Form onSubmit={handleLogin}>
-          <Form.Group className="mb-3">
-            <Form.Label>Email</Form.Label>
-            <Form.Control
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </Form.Group>
+    <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}>
+      <div className="auth-container">
+        <div className="auth-card">
+          <div className="auth-header">
+            <h2 className="auth-title">👩‍❤️‍👨 Welcome Back</h2>
+            <p className="auth-subtitle">Sign in to manage your schedule</p>
+          </div>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Mật khẩu</Form.Label>
-            <Form.Control
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </Form.Group>
+          {error && <div className="alert alert-danger">{error}</div>}
 
-          <Button variant="primary" type="submit" className="w-100">
-            Đăng nhập
-          </Button>
-        </Form>
-      </Card>
-    </Container>
+          <form onSubmit={handleLogin} className="auth-form">
+            <div className="form-group">
+              <label className="form-label">Email</label>
+              <input
+                type="email"
+                className="form-input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input
+                type="password"
+                className="form-input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+                minLength={8}
+              />
+            </div>
+
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
+
+          <div className="auth-divider">
+            <span>OR</span>
+          </div>
+
+          <div className="google-login-wrapper">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError("Google login failed")}
+              useOneTap
+              theme="filled_black"
+              size="large"
+            />
+          </div>
+
+          <div className="auth-footer">
+            <p>
+              Don't have an account?{" "}
+              <a href="/register" className="auth-link">
+                Sign up
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </GoogleOAuthProvider>
   );
 }
