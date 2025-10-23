@@ -3,7 +3,12 @@ import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import TaskList from "@/components/TaskList";
 import TaskModal from "@/components/TaskModal";
+import CalendarView from "@/components/CalendarView";
+import AIAssistant from "@/components/AIAssistant";
+import { Calendar, List, Sparkles } from "lucide-react";
 import "@/styles/dashboard.css";
+import "@/styles/calendar.css";
+import "@/styles/ai-assistant.css";
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState([]);
@@ -12,6 +17,9 @@ export default function Dashboard() {
   const [currentListId, setCurrentListId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [viewMode, setViewMode] = useState("list"); // 'list', 'month', 'week', 'day', 'agenda'
+  const [calendarViewMode, setCalendarViewMode] = useState("month");
+  const [showAI, setShowAI] = useState(false);
 
   useEffect(() => {
     fetchLists();
@@ -77,6 +85,13 @@ export default function Dashboard() {
     setShowModal(true);
   }
 
+  function handleDateClick(date) {
+    setEditingTask({
+      due_date: date.toISOString().split("T")[0],
+    });
+    setShowModal(true);
+  }
+
   return (
     <div className="dashboard">
       <Sidebar
@@ -91,16 +106,59 @@ export default function Dashboard() {
       <div className="main-content">
         <div className="content-header">
           <h2 className="filter-title">{getFilterTitle()}</h2>
-          <button className="btn-add-task" onClick={handleAddTask}>
-            + Add Task
-          </button>
+          <div className="header-actions">
+            <div className="view-switcher">
+              <button
+                className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+                onClick={() => setViewMode("list")}
+                title="List View"
+              >
+                <List size={18} />
+              </button>
+              <button
+                className={`view-btn ${
+                  viewMode === "calendar" ? "active" : ""
+                }`}
+                onClick={() => setViewMode("calendar")}
+                title="Calendar View"
+              >
+                <Calendar size={18} />
+              </button>
+            </div>
+
+            {viewMode === "calendar" && (
+              <select
+                className="calendar-mode-select"
+                value={calendarViewMode}
+                onChange={(e) => setCalendarViewMode(e.target.value)}
+              >
+                <option value="month">Month</option>
+                <option value="week">Week</option>
+                <option value="day">Day</option>
+                <option value="agenda">Agenda</option>
+              </select>
+            )}
+
+            <button className="btn-add-task" onClick={handleAddTask}>
+              + Add Task
+            </button>
+          </div>
         </div>
 
-        <TaskList
-          tasks={tasks}
-          onRefresh={fetchTasks}
-          onEdit={handleEditTask}
-        />
+        {viewMode === "list" ? (
+          <TaskList
+            tasks={tasks}
+            onRefresh={fetchTasks}
+            onEdit={handleEditTask}
+          />
+        ) : (
+          <CalendarView
+            tasks={tasks}
+            viewMode={calendarViewMode}
+            onTaskClick={handleEditTask}
+            onDateClick={handleDateClick}
+          />
+        )}
       </div>
 
       {showModal && (
@@ -114,6 +172,20 @@ export default function Dashboard() {
           }}
         />
       )}
+
+      {/* AI Assistant Toggle Button */}
+      {!showAI && (
+        <button
+          className="ai-toggle-btn"
+          onClick={() => setShowAI(true)}
+          title="AI Assistant"
+        >
+          <Sparkles size={24} />
+        </button>
+      )}
+
+      {/* AI Assistant Panel */}
+      {showAI && <AIAssistant tasks={tasks} onClose={() => setShowAI(false)} />}
     </div>
   );
 }
