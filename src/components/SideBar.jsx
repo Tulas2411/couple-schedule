@@ -1,4 +1,6 @@
-import { Calendar, Inbox, CheckSquare, Trash2 } from "lucide-react";
+"use client";
+import { Calendar, Inbox, CheckSquare, LogOut } from "lucide-react";
+import ListManager from "./ListManager";
 
 export default function Sidebar({
   currentFilter,
@@ -6,11 +8,39 @@ export default function Sidebar({
   onFilterChange,
   onListChange,
   lists,
+  onRefreshLists,
+  user,
+  onLogout,
 }) {
+  const getInitials = (name) => {
+    if (!name) return user?.email?.[0]?.toUpperCase() || "U";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <div className="user-avatar">T</div>
+        <div className="user-info">
+          <div className="user-avatar" title={user?.fullName || user?.email}>
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="Avatar" />
+            ) : (
+              getInitials(user?.fullName)
+            )}
+          </div>
+          <div className="user-details">
+            <div className="user-name">{user?.fullName || "User"}</div>
+            <div className="user-email">{user?.email}</div>
+          </div>
+        </div>
+        <button className="logout-btn" onClick={onLogout} title="Logout">
+          <LogOut size={18} />
+        </button>
       </div>
 
       <div className="menu-section">
@@ -20,7 +50,6 @@ export default function Sidebar({
         >
           <Calendar size={18} />
           <span>Today</span>
-          <span className="count">7</span>
         </div>
 
         <div
@@ -31,7 +60,6 @@ export default function Sidebar({
         >
           <Calendar size={18} />
           <span>Next 7 Days</span>
-          <span className="count">7</span>
         </div>
 
         <div
@@ -40,12 +68,11 @@ export default function Sidebar({
         >
           <Inbox size={18} />
           <span>Inbox</span>
-          <span className="count">5</span>
         </div>
       </div>
 
       <div className="menu-section">
-        <p className="section-title">Lists</p>
+        <p className="section-title">My Lists</p>
         {lists.map((list) => (
           <div
             key={list.id}
@@ -58,18 +85,8 @@ export default function Sidebar({
             <span>{list.name}</span>
           </div>
         ))}
-      </div>
 
-      <div className="menu-section">
-        <p className="section-title">Tags</p>
-        <div className="menu-item">
-          <span className="tag-dot" style={{ background: "#ef4444" }}></span>
-          <span>Urgent</span>
-        </div>
-        <div className="menu-item">
-          <span className="tag-dot" style={{ background: "#f59e0b" }}></span>
-          <span>Important</span>
-        </div>
+        <ListManager lists={lists} onRefresh={onRefreshLists} />
       </div>
 
       <div className="menu-section">
@@ -82,10 +99,6 @@ export default function Sidebar({
         >
           <CheckSquare size={18} />
           <span>Completed</span>
-        </div>
-        <div className="menu-item">
-          <Trash2 size={18} />
-          <span>Trash</span>
         </div>
       </div>
     </div>

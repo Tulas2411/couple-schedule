@@ -1,11 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import TaskList from "@/components/TaskList";
 import TaskModal from "@/components/TaskModal";
 import CalendarView from "@/components/CalendarView";
 import AIAssistant from "@/components/AIAssistant";
-import { Calendar, List, Sparkles } from "lucide-react";
+import { Calendar, List, Sparkles, LogOut } from "lucide-react";
 import "@/styles/dashboard.css";
 import "@/styles/calendar.css";
 import "@/styles/ai-assistant.css";
@@ -17,32 +18,96 @@ export default function Dashboard() {
   const [currentListId, setCurrentListId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-  const [viewMode, setViewMode] = useState("list"); // 'list', 'month', 'week', 'day', 'agenda'
+  const [viewMode, setViewMode] = useState("list");
   const [calendarViewMode, setCalendarViewMode] = useState("month");
   const [showAI, setShowAI] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const router = useRouter();
 
   useEffect(() => {
+    // Check authentication
+    const token = localStorage.getItem("token");
+    const userData = localStorage.getItem("user");
+
+    if (!token || !userData) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      setUser(JSON.parse(userData));
+    } catch (e) {
+      router.push("/login");
+      return;
+    }
+
     fetchLists();
     fetchTasks();
-  }, [currentFilter, currentListId]);
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetchTasks();
+    }
+  }, [currentFilter, currentListId, user]);
 
   async function fetchLists() {
-    const res = await fetch("/api/lists");
-    const data = await res.json();
-    setLists(data);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/lists", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 401) {
+        handleLogout();
+        return;
+      }
+
+      const data = await res.json();
+      setLists(data);
+    } catch (error) {
+      console.error("Failed to fetch lists:", error);
+    }
   }
 
   async function fetchTasks() {
-    let url = "/api/tasks?";
-    if (currentListId) {
-      url += `listId=${currentListId}`;
-    } else {
-      url += `filter=${currentFilter}`;
-    }
+    try {
+      const token = localStorage.getItem("token");
+      let url = "/api/tasks?";
 
-    const res = await fetch(url);
-    const data = await res.json();
-    setTasks(data);
+      if (currentListId) {
+        url += `listId=${currentListId}`;
+      } else {
+        url += `filter=${currentFilter}`;
+      }
+
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 401) {
+        handleLogout();
+        return;
+      }
+
+      const data = await res.json();
+      setTasks(data);
+    } catch (error) {
+      console.error("Failed to fetch tasks:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    router.push("/login");
   }
 
   function getFilterTitle() {
@@ -92,6 +157,24 @@ export default function Dashboard() {
     setShowModal(true);
   }
 
+  if (loading) {
+    return (
+      <div className="dashboard">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100vh",
+            color: "#999",
+          }}
+        >
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard">
       <Sidebar
@@ -101,11 +184,18 @@ export default function Dashboard() {
         onListChange={handleListChange}
         lists={lists}
         onRefreshLists={fetchLists}
+        user={user}
+        onLogout={handleLogout}
       />
 
       <div className="main-content">
         <div className="content-header">
-          <h2 className="filter-title">{getFilterTitle()}</h2>
+          <div>
+            <h2 className="filter-title">{getFilterTitle()}</h2>
+            <p className="task-count-subtitle">
+              {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
+            </p>
+          </div>
           <div className="header-actions">
             <div className="view-switcher">
               <button
@@ -173,7 +263,6 @@ export default function Dashboard() {
         />
       )}
 
-      {/* AI Assistant Toggle Button */}
       {!showAI && (
         <button
           className="ai-toggle-btn"
@@ -184,7 +273,6 @@ export default function Dashboard() {
         </button>
       )}
 
-      {/* AI Assistant Panel */}
       {showAI && <AIAssistant tasks={tasks} onClose={() => setShowAI(false)} />}
     </div>
   );

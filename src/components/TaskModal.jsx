@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { X, Calendar, Flag, Tag, List } from "lucide-react";
+import { X, Calendar, Flag, Tag, List, Clock, Loader2 } from "lucide-react";
 
 export default function TaskModal({ task, lists, onClose, onSave }) {
   const [title, setTitle] = useState("");
@@ -10,6 +10,8 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
   const [listId, setListId] = useState("");
   const [priority, setPriority] = useState(1);
   const [tags, setTags] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (task) {
@@ -25,29 +27,58 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    setError("");
 
-    const method = task ? "PUT" : "POST";
-    const body = {
-      title,
-      description,
-      due_date: dueDate || null,
-      due_time: dueTime || null,
-      list_id: listId || null,
-      priority,
-      tags,
-    };
-
-    if (task) {
-      body.id = task.id;
+    if (!title.trim()) {
+      setError("Task title is required");
+      return;
     }
 
-    await fetch("/api/tasks", {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    setLoading(true);
 
-    onSave();
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Please login to continue");
+        return;
+      }
+
+      const method = task ? "PUT" : "POST";
+      const body = {
+        title: title.trim(),
+        description: description.trim(),
+        due_date: dueDate || null,
+        due_time: dueTime || null,
+        list_id: listId || null,
+        priority,
+        tags,
+      };
+
+      if (task) {
+        body.id = task.id;
+      }
+
+      const response = await fetch("/api/tasks", {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to save task");
+      }
+
+      onSave();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const priorityOptions = [
@@ -57,17 +88,26 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
     { value: 4, label: "Priority 4", color: "#ef4444" },
   ];
 
+  // Set minimum date to today
+  const today = new Date().toISOString().split("T")[0];
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>{task ? "Edit Task" : "Add Task"}</h3>
-          <button className="modal-close" onClick={onClose}>
+          <h3>{task ? "Edit Task" : "Add New Task"}</h3>
+          <button className="modal-close" onClick={onClose} type="button">
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
+          {error && (
+            <div className="error-message">
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="form-group">
             <input
               type="text"
@@ -77,16 +117,19 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
               onChange={(e) => setTitle(e.target.value)}
               required
               autoFocus
+              maxLength={500}
+              disabled={loading}
             />
           </div>
 
           <div className="form-group">
             <textarea
               className="form-input"
-              placeholder="Description"
+              placeholder="Description (optional)"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
+              disabled={loading}
             />
           </div>
 
@@ -100,16 +143,21 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
                 className="form-input"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
+                min={today}
+                disabled={loading}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Time</label>
+              <label className="form-label">
+                <Clock size={16} /> Time
+              </label>
               <input
                 type="time"
                 className="form-input"
                 value={dueTime}
                 onChange={(e) => setDueTime(e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
@@ -131,6 +179,7 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
                     color: priority === opt.value ? opt.color : "#999",
                   }}
                   onClick={() => setPriority(opt.value)}
+                  disabled={loading}
                 >
                   <Flag
                     size={14}
@@ -150,6 +199,7 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
               className="form-input"
               value={listId}
               onChange={(e) => setListId(e.target.value)}
+              disabled={loading}
             >
               <option value="">Inbox</option>
               {lists.map((list) => (
@@ -161,11 +211,25 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn-cancel" onClick={onClose}>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={onClose}
+              disabled={loading}
+            >
               Cancel
             </button>
-            <button type="submit" className="btn-save">
-              {task ? "Save" : "Add Task"}
+            <button type="submit" className="btn-save" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 size={16} className="spinner" />
+                  Saving...
+                </>
+              ) : task ? (
+                "Save Changes"
+              ) : (
+                "Add Task"
+              )}
             </button>
           </div>
         </form>

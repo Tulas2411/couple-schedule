@@ -1,33 +1,96 @@
+"use client";
 import { Circle, CheckCircle2, Calendar, Flag, Inbox } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 export default function TaskList({ tasks, onRefresh, onEdit }) {
   async function toggleComplete(task) {
-    await fetch("/api/tasks", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: task.id,
-        completed: !task.completed,
-        title: task.title,
-        description: task.description,
-        due_date: task.due_date,
-        list_id: task.list_id,
-        priority: task.priority,
-        tags: task.tags,
-      }),
-    });
-    onRefresh();
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        alert("Please login to continue");
+        window.location.href = "/login";
+        return;
+      }
+
+      const response = await fetch("/api/tasks", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id: task.id,
+          completed: !task.completed,
+          title: task.title,
+          description: task.description,
+          due_date: task.due_date,
+          due_time: task.due_time,
+          list_id: task.list_id,
+          priority: task.priority,
+          tags: task.tags,
+        }),
+      });
+
+      if (response.status === 401) {
+        alert("Session expired. Please login again.");
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to update task");
+      }
+
+      onRefresh();
+    } catch (error) {
+      console.error("Toggle complete error:", error);
+      alert(error.message || "Failed to update task");
+    }
   }
 
   async function deleteTask(id) {
     if (!confirm("Delete this task?")) return;
-    await fetch("/api/tasks", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    onRefresh();
+
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        alert("Please login to continue");
+        window.location.href = "/login";
+        return;
+      }
+
+      const response = await fetch("/api/tasks", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id }),
+      });
+
+      if (response.status === 401) {
+        alert("Session expired. Please login again.");
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete task");
+      }
+
+      onRefresh();
+    } catch (error) {
+      console.error("Delete task error:", error);
+      alert(error.message || "Failed to delete task");
+    }
   }
 
   function getPriorityColor(priority) {
@@ -45,29 +108,37 @@ export default function TaskList({ tasks, onRefresh, onEdit }) {
 
   function formatDueDate(due_date) {
     if (!due_date) return null;
-    const date = parseISO(due_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
+    try {
+      const date = parseISO(due_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      date.setHours(0, 0, 0, 0);
 
-    if (date.getTime() === today.getTime()) {
-      return "Today";
-    } else if (date.getTime() === today.getTime() + 86400000) {
-      return "Tomorrow";
-    } else if (date < today) {
-      return format(date, "MMM d");
-    } else {
-      return format(date, "MMM d");
+      if (date.getTime() === today.getTime()) {
+        return "Today";
+      } else if (date.getTime() === today.getTime() + 86400000) {
+        return "Tomorrow";
+      } else if (date < today) {
+        return format(date, "MMM d");
+      } else {
+        return format(date, "MMM d");
+      }
+    } catch (error) {
+      return null;
     }
   }
 
   function isOverdue(due_date) {
     if (!due_date) return false;
-    const date = parseISO(due_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    return date < today;
+    try {
+      const date = parseISO(due_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      date.setHours(0, 0, 0, 0);
+      return date < today;
+    } catch (error) {
+      return false;
+    }
   }
 
   // Group tasks by sections
