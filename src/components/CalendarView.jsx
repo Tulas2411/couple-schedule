@@ -12,16 +12,14 @@ import {
   parseISO,
   addMonths,
   subMonths,
-  startOfDay,
-  endOfDay,
   addWeeks,
   subWeeks,
   isToday,
   isBefore,
-  isAfter,
 } from "date-fns";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import "@/styles/calendar.css";
+
 export default function CalendarView({
   tasks,
   viewMode,
@@ -96,7 +94,7 @@ export default function CalendarView({
   );
 }
 
-// Month View
+// Month View (unchanged)
 function MonthView({ tasks, currentDate, onTaskClick, onDateClick }) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
@@ -173,7 +171,7 @@ function MonthView({ tasks, currentDate, onTaskClick, onDateClick }) {
   );
 }
 
-// Week View
+// Week View - FIXED VERSION
 function WeekView({ tasks, currentDate, onTaskClick }) {
   const weekStart = startOfWeek(currentDate);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -195,69 +193,73 @@ function WeekView({ tasks, currentDate, onTaskClick }) {
           </div>
         ))}
       </div>
+
       <div className="week-grid">
-        <div className="time-slots">
-          {hours.map((hour) => (
-            <div key={hour} className="time-slot">
-              {format(new Date().setHours(hour, 0), "ha")}
-            </div>
-          ))}
-        </div>
-        <div className="week-columns">
-          {weekDays.map((day) => {
-            const dayTasks = tasks
-              .filter(
-                (task) =>
-                  task.due_date && isSameDay(parseISO(task.due_date), day)
-              )
-              .sort((a, b) => {
-                if (!a.due_time) return 1;
-                if (!b.due_time) return -1;
-                return a.due_time.localeCompare(b.due_time);
-              });
-
-            return (
-              <div key={day.toString()} className="week-day-column">
-                {dayTasks.map((task) => {
-                  const startHour = task.due_time
-                    ? parseInt(task.due_time.split(":")[0])
-                    : 9;
-                  const startMinute = task.due_time
-                    ? parseInt(task.due_time.split(":")[1])
-                    : 0;
-                  const topPosition = startHour * 60 + startMinute;
-
-                  return (
-                    <div
-                      key={task.id}
-                      className="week-task"
-                      style={{
-                        top: `${topPosition}px`,
-                        background: task.lists?.color || "#6b7280",
-                      }}
-                      onClick={() => onTaskClick && onTaskClick(task)}
-                    >
-                      <div className="task-time-label">
-                        {task.due_time &&
-                          format(
-                            parseISO(`2000-01-01T${task.due_time}`),
-                            "h:mm a"
-                          )}
-                      </div>
-                      <div className="task-title-label">{task.title}</div>
-                    </div>
-                  );
-                })}
+        <div className="week-grid-container">
+          <div className="time-slots">
+            {hours.map((hour) => (
+              <div key={hour} className="time-slot">
+                {format(new Date().setHours(hour, 0), "ha")}
               </div>
-            );
-          })}
+            ))}
+          </div>
+
+          <div className="week-columns">
+            {weekDays.map((day) => {
+              const dayTasks = tasks
+                .filter(
+                  (task) =>
+                    task.due_date && isSameDay(parseISO(task.due_date), day)
+                )
+                .sort((a, b) => {
+                  if (!a.due_time) return 1;
+                  if (!b.due_time) return -1;
+                  return a.due_time.localeCompare(b.due_time);
+                });
+
+              return (
+                <div key={day.toString()} className="week-day-column">
+                  {dayTasks.map((task) => {
+                    const startHour = task.due_time
+                      ? parseInt(task.due_time.split(":")[0])
+                      : 9;
+                    const startMinute = task.due_time
+                      ? parseInt(task.due_time.split(":")[1])
+                      : 0;
+                    const topPosition = startHour * 60 + startMinute;
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="week-task"
+                        style={{
+                          top: `${topPosition}px`,
+                          background: task.lists?.color || "#6b7280",
+                        }}
+                        onClick={() => onTaskClick && onTaskClick(task)}
+                      >
+                        <span className="task-time-label">
+                          {task.due_time &&
+                            format(
+                              parseISO(`2000-01-01T${task.due_time}`),
+                              "h:mm a"
+                            )}
+                        </span>
+                        <span className="task-title-label">{task.title}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// Day View
+// Day View (unchanged)
 function DayView({ tasks, currentDate, onTaskClick }) {
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const dayTasks = tasks
@@ -332,7 +334,7 @@ function DayView({ tasks, currentDate, onTaskClick }) {
   );
 }
 
-// Agenda View
+// Agenda View (unchanged)
 function AgendaView({ tasks, onTaskClick }) {
   const today = new Date();
   const upcomingTasks = tasks
@@ -366,7 +368,7 @@ function AgendaView({ tasks, onTaskClick }) {
       ) : (
         Object.entries(groupedTasks).map(([date, dateTasks]) => {
           const taskDate = parseISO(date);
-          const isPast = isBefore(taskDate, startOfDay(today));
+          const isPast = isBefore(taskDate, new Date().setHours(0, 0, 0, 0));
           const isNow = isToday(taskDate);
 
           return (
