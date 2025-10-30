@@ -1,8 +1,12 @@
 import { getUserFromToken } from "@/lib/auth";
+import { generateGeminiResponse } from "@/lib/gemini";
 
+/**
+ * POST: Chat with AI Assistant
+ */
 export async function POST(request) {
   try {
-    // Get user from token
+    // Authenticate user
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
     const user = await getUserFromToken(token);
 
@@ -10,68 +14,67 @@ export async function POST(request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Parse request body
     const { message, context } = await request.json();
 
-    if (!message) {
+    if (!message || !message.trim()) {
       return Response.json({ error: "Message is required" }, { status: 400 });
     }
 
-    // Call OpenAI API
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4",
-        messages: [
-          {
-            role: "system",
-            content: `You are a helpful AI assistant for a couple's schedule management app. 
-            Help users organize their tasks, suggest priorities, and provide scheduling advice.
-            Be friendly, concise, and couple-focused. Current user: ${
-              user.email
-            }.
-            ${context ? `Context: ${JSON.stringify(context)}` : ""}`,
-          },
-          {
-            role: "user",
-            content: message,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 500,
-      }),
-    });
+    // Build system context for AI
+    const systemContext = `You are a helpful AI assistant for a couple's schedule management application.
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error("OpenAI API error:", error);
-      return Response.json(
-        { error: "AI service unavailable" },
-        { status: 503 }
-      );
-    }
+Your role:
+- Help users organize their tasks and schedules
+- Suggest priorities based on deadlines and importance
+- Provide time management advice
+- Be friendly, concise, and supportive
+- Focus on actionable recommendations
 
-    const data = await response.json();
-    const aiMessage =
-      data.choices[0]?.message?.content ||
-      "I'm sorry, I couldn't process that.";
+Current user: ${user.email}
+${
+  context
+    ? `\nUser's current tasks:
+- Total tasks: ${context.tasksCount}
+- Upcoming tasks: ${context.upcomingTasks}
+- Completed tasks: ${context.completedTasks}`
+    : ""
+}
+
+Guidelines:
+- Keep responses under 3-4 sentences unless asked for details
+- Prioritize practical advice over theory
+- Use encouraging language
+- If suggesting task priorities, explain why`;
+
+    // Call Gemini API
+    const result = await generateGeminiResponse(message, systemContext);
 
     return Response.json({
-      message: aiMessage,
-      usage: data.usage,
+      message: result.text,
+      usage: result.usage,
     });
   } catch (error) {
     console.error("AI assistant error:", error);
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+
+    return Response.json(
+      {
+        error:
+          "AI service is temporarily unavailable. Please try again in a moment.",
+        details:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      },
+      { status: 503 }
+    );
   }
 }
 
-// Suggest tasks based on calendar
+/**
+ * GET: Generate task suggestions
+ */
 export async function GET(request) {
   try {
+    // Authenticate user
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
     const user = await getUserFromToken(token);
 
@@ -79,41 +82,73 @@ export async function GET(request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Parse query parameters
     const { searchParams } = new URL(request.url);
-    const tasks = JSON.parse(searchParams.get("tasks") || "[]");
+    const tasksParam = searchParams.get("tasks");
+    const tasks = tasksParam ? JSON.parse(tasksParam) : [];
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a scheduling assistant. Analyze the tasks and provide 3-5 actionable suggestions for better time management.",
-          },
-          {
-            role: "user",
-            content: `Here are my upcoming tasks: ${JSON.stringify(
-              tasks
-            )}. Give me suggestions.`,
-          },
-        ],
-        temperature: 0.8,
-        max_tokens: 300,
-      }),
+    // Handle empty task list
+    if (tasks.length === 0) {
+      return Response.json({
+        suggestions:
+          "You don't have any upcoming tasks at the moment. Great job staying on top of things! 🎉\n\nConsider:\n1. Planning tasks for the upcoming week\n2. Setting personal or couple goals\n3. Scheduling quality time together",
+      });
+    }
+
+    // Build task summary for AI
+    const taskSummary = tasks
+      .slice(0, 10) // Limit to first 10 tasks to avoid token limits
+      .map((task, index) => {
+        const parts = [`${index + 1}. "${task.title}"`];
+
+        if (task.due_date) {
+          parts.push(`Due: ${task.due_date}`);
+        }
+
+        if (task.priority && task.priority > 1) {
+          parts.push(`Priority: ${task.priority}/4`);
+        }
+
+        return parts.join(" | ");
+      })
+      .join("\n");
+
+    const systemContext = `You are an expert productivity and time management assistant.
+
+Analyze the user's task list and provide 3-5 specific, actionable suggestions.
+
+Focus areas:
+1. Priority management (urgent vs important)
+2. Time blocking strategies
+3. Task breakdown (if any task seems too large)
+4. Work-life balance
+5. Avoiding overwhelm
+
+Format: Provide a numbered list of practical suggestions with brief explanations.`;
+
+    const userMessage = `Here are my upcoming tasks:\n\n${taskSummary}\n\nTotal: ${
+      tasks.length
+    } task${
+      tasks.length === 1 ? "" : "s"
+    }\n\nPlease analyze and give me specific suggestions to manage these effectively.`;
+
+    // Call Gemini API
+    const result = await generateGeminiResponse(userMessage, systemContext);
+
+    return Response.json({
+      suggestions: result.text,
+      usage: result.usage,
     });
-
-    const data = await response.json();
-    const suggestions = data.choices[0]?.message?.content || "";
-
-    return Response.json({ suggestions });
   } catch (error) {
     console.error("AI suggestions error:", error);
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+
+    return Response.json(
+      {
+        error: "Failed to generate suggestions. Please try again.",
+        details:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      },
+      { status: 500 }
+    );
   }
 }

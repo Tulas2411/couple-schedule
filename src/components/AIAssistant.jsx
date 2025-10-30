@@ -123,8 +123,10 @@ export default function AIAssistant({ tasks, onClose }) {
             <Sparkles size={20} />
           </div>
           <div>
-            <h3 className="ai-title">AI Assistant</h3>
-            <p className="ai-subtitle">Powered by GPT-4</p>
+            <div>
+              <h3 className="ai-title">AI Assistant</h3>
+              <p className="ai-subtitle">Powered by Google Gemini</p>{" "}
+            </div>
           </div>
         </div>
         <button className="ai-close-btn" onClick={onClose}>
