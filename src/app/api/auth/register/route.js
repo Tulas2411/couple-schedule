@@ -1,6 +1,9 @@
 import { supabase } from "@/lib/supabaseClient";
 import { hashPassword, generateVerificationCode } from "@/lib/auth";
 import { sendVerificationEmail } from "@/lib/email";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
 
 export async function POST(request) {
   try {
@@ -43,7 +46,24 @@ export async function POST(request) {
     // Hash password and generate verification code
     const passwordHash = await hashPassword(password);
     const verificationCode = generateVerificationCode();
-    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // ⚡ FIX: Tạo thời gian hết hạn với UTC (sẽ tự động chuyển đổi đúng)
+    dayjs.extend(utc);
+    dayjs.extend(timezone);
+    const now = dayjs().tz("Asia/Ho_Chi_Minh");
+    const verificationExpires = now.add(1, "hour");
+
+    console.log("🔐 Generated verification code:", verificationCode);
+    console.log(
+      "📍 Server timezone:",
+      Intl.DateTimeFormat().resolvedOptions().timeZone
+    );
+    console.log("⏰ Current server time:", now.toISOString());
+    console.log("⏰ Code will expire at:", verificationExpires.toISOString());
+    console.log(
+      "⏰ Time until expiry (minutes):",
+      (verificationExpires - now) / 1000 / 60
+    );
 
     // Create user
     const { data: user, error } = await supabase
@@ -65,6 +85,8 @@ export async function POST(request) {
       console.error("Database error:", error);
       return Response.json({ error: "Registration failed" }, { status: 500 });
     }
+
+    console.log("✅ User created with expiry:", user.verification_expires);
 
     // Send verification email
     const emailResult = await sendVerificationEmail(email, verificationCode);

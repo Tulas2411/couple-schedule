@@ -30,7 +30,7 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
     setError("");
 
     if (!title.trim()) {
-      setError("Task title is required");
+      setError("Tiêu đề Task không được để trống");
       return;
     }
 
@@ -39,7 +39,7 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        setError("Please login to continue");
+        setError("Đăng nhập lại đi bạn ơi");
         return;
       }
 
@@ -70,7 +70,7 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to save task");
+        throw new Error(data.error || "Tạo task thất bại");
       }
 
       onSave();
