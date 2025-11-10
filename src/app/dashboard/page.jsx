@@ -273,7 +273,13 @@ export default function Dashboard() {
         </button>
       )}
 
-      {showAI && <AIAssistant tasks={tasks} onClose={() => setShowAI(false)} />}
+      {showAI && (
+        <AIAssistant
+          tasks={tasks}
+          onClose={() => setShowAI(false)}
+          onTaskCreated={fetchTasks} // ✅ Thêm callback để refresh tasks
+        />
+      )}
     </div>
   );
 }
