@@ -43,6 +43,9 @@
   border-radius: 8px;
   margin-bottom: 20px;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .alert-danger {
@@ -100,6 +103,16 @@
   color: #666;
   font-size: 12px;
   margin-top: 6px;
+}
+
+/* Forgot Password Link */
+.forgot-password-link {
+  margin-top: 8px;
+  text-align: right;
+}
+
+.forgot-password-link .auth-link {
+  font-size: 13px;
 }
 
 /* Input with Icon */
@@ -168,7 +181,7 @@
   margin-bottom: 0;
 }
 
-/* Buttons */
+/* Buttons - FIXED: Added flex properties for centering */
 .btn-primary {
   width: 100%;
   background: #dc4c3e;
@@ -180,6 +193,10 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -205,6 +222,9 @@
   cursor: pointer;
   text-decoration: none;
   transition: color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-link:hover:not(:disabled) {

@@ -114,6 +114,11 @@ export default function LoginPage() {
                 required
                 minLength={8}
               />
+              <div className="forgot-password-link">
+                <a href="/forgot-password" className="auth-link">
+                  Forgot password?
+                </a>
+              </div>
             </div>
 
             <button type="submit" className="btn-primary" disabled={loading}>
