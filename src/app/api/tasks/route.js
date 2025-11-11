@@ -34,7 +34,8 @@ export async function GET(request) {
         .lte("due_date", next7days.toISOString().split("T")[0])
         .eq("completed", false);
     } else if (filter === "inbox") {
-      query = query.is("list_id", null).eq("completed", false);
+      // Inbox hiện tất cả task chưa hoàn thành
+      query = query.eq("completed", false);
     } else if (filter === "completed") {
       query = query.eq("completed", true);
     } else if (listId) {

@@ -45,6 +45,14 @@ export default function Sidebar({
 
       <div className="menu-section">
         <div
+          className={`menu-item ${currentFilter === "inbox" ? "active" : ""}`}
+          onClick={() => onFilterChange("inbox")}
+        >
+          <Inbox size={18} />
+          <span>Inbox</span>
+        </div>
+
+        <div
           className={`menu-item ${currentFilter === "today" ? "active" : ""}`}
           onClick={() => onFilterChange("today")}
         >
@@ -60,14 +68,6 @@ export default function Sidebar({
         >
           <Calendar size={18} />
           <span>Next 7 Days</span>
-        </div>
-
-        <div
-          className={`menu-item ${currentFilter === "inbox" ? "active" : ""}`}
-          onClick={() => onFilterChange("inbox")}
-        >
-          <Inbox size={18} />
-          <span>Inbox</span>
         </div>
       </div>
 

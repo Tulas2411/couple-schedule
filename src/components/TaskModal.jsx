@@ -201,7 +201,7 @@ export default function TaskModal({ task, lists, onClose, onSave }) {
               onChange={(e) => setListId(e.target.value)}
               disabled={loading}
             >
-              <option value="">Inbox</option>
+              <option value=""></option>
               {lists.map((list) => (
                 <option key={list.id} value={list.id}>
                   {list.icon} {list.name}
