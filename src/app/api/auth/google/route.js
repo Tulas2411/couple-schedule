@@ -8,7 +8,7 @@ export async function POST(request) {
 
     if (!email || !googleId) {
       return Response.json(
-        { error: "Invalid Google authentication" },
+        { error: "Tài khoản Google không xác thực" },
         { status: 400 }
       );
     }
@@ -37,9 +37,9 @@ export async function POST(request) {
         .single();
 
       if (error) {
-        console.error("User creation error:", error);
+        console.error("Không tạo được tài khoản:", error);
         return Response.json(
-          { error: "Failed to create user" },
+          { error: "Tạo tài khoản thất bại rồi bạn ơi" },
           { status: 500 }
         );
       }
@@ -60,7 +60,7 @@ export async function POST(request) {
     const session = await createSession(user.id);
 
     return Response.json({
-      message: "Google login successful",
+      message: "Đăng nhập thành công bằng Google",
       token: session.token,
       user: {
         id: user.id,
@@ -70,7 +70,7 @@ export async function POST(request) {
       },
     });
   } catch (error) {
-    console.error("Google auth error:", error);
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Tài khoản Google không xác thực:", error);
+    return Response.json({ error: "Lỗi server-side" }, { status: 500 });
   }
 }

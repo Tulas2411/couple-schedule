@@ -1,8 +1,56 @@
 import { getUserFromToken } from "@/lib/auth";
-import { generateGeminiResponse } from "@/lib/gemini";
+import { generateGeminiResponse, parseTaskCreationIntent } from "@/lib/gemini";
+import {
+  createTask,
+  getUserLists,
+  parseDate,
+  parseTime,
+} from "@/lib/taskHelper";
 
 /**
- * POST: Chat with AI Assistant
+ * Extract task details from user message using AI
+ */
+async function extractTaskDetails(userMessage, systemContext) {
+  const extractionPrompt = `${systemContext}
+
+Analyze this user message and extract task details. If the user wants to create a task, respond with ONLY a JSON object (no markdown, no explanation):
+
+{
+  "action": "create_task",
+  "title": "task title here",
+  "description": "optional description",
+  "dueDate": "today/tomorrow/YYYY-MM-DD or null",
+  "dueTime": "HH:MM or morning/afternoon/evening or null",
+  "priority": 1-4 (1=low, 2=normal, 3=high, 4=urgent)
+}
+
+If the user is NOT asking to create a task, respond with:
+{
+  "action": "chat"
+}
+
+User message: "${userMessage}"
+
+JSON Response:`;
+
+  const result = await generateGeminiResponse(extractionPrompt, "");
+
+  try {
+    // Try to extract JSON from response
+    const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return parsed;
+    }
+  } catch (e) {
+    console.error("Failed to parse AI response as JSON:", e);
+  }
+
+  return { action: "chat" };
+}
+
+/**
+ * POST: Chat with AI Assistant (with task creation)
  */
 export async function POST(request) {
   try {
@@ -21,34 +69,105 @@ export async function POST(request) {
       return Response.json({ error: "Message is required" }, { status: 400 });
     }
 
-    // Build system context for AI
+    // Get user's lists
+    const lists = await getUserLists(user.id);
+    const listNames = lists.map((l) => l.name).join(", ");
+
+    // Build system context
     const systemContext = `You are a helpful AI assistant for a couple's schedule management application.
 
-Your role:
-- Help users organize their tasks and schedules
-- Suggest priorities based on deadlines and importance
-- Provide time management advice
-- Be friendly, concise, and supportive
-- Focus on actionable recommendations
+Your capabilities:
+- Answer questions about task management
+- Analyze user messages to understand if they want to create tasks
+- Help organize schedules and suggest priorities
 
 Current user: ${user.email}
 ${
   context
-    ? `\nUser's current tasks:
-- Total tasks: ${context.tasksCount}
-- Upcoming tasks: ${context.upcomingTasks}
-- Completed tasks: ${context.completedTasks}`
+    ? `User's tasks: ${context.tasksCount} total, ${context.upcomingTasks} upcoming, ${context.completedTasks} completed`
     : ""
 }
+${lists.length > 0 ? `Available lists: ${listNames}` : ""}
 
-Guidelines:
-- Keep responses under 3-4 sentences unless asked for details
-- Prioritize practical advice over theory
-- Use encouraging language
-- If suggesting task priorities, explain why`;
+Be conversational and helpful. When users ask to create tasks, acknowledge and help them.`;
 
-    // Call Gemini API
-    const result = await generateGeminiResponse(message, systemContext);
+    // Step 1: Detect if user wants to create a task
+    const taskIntent = await extractTaskDetails(message, systemContext);
+
+    console.log("📋 Task Intent:", taskIntent);
+
+    // Step 2: If task creation intent, create the task
+    if (taskIntent.action === "create_task" && taskIntent.title) {
+      try {
+        // Parse dates and times
+        const dueDate = parseDate(taskIntent.dueDate);
+        const dueTime = parseTime(taskIntent.dueTime);
+
+        // Find list by name if specified
+        let listId = null;
+        if (taskIntent.listName) {
+          const list = lists.find(
+            (l) => l.name.toLowerCase() === taskIntent.listName.toLowerCase()
+          );
+          if (list) {
+            listId = list.id;
+          }
+        }
+
+        // Create task
+        const task = await createTask(user.id, {
+          title: taskIntent.title,
+          description: taskIntent.description || null,
+          dueDate: dueDate,
+          dueTime: dueTime,
+          priority: taskIntent.priority || 2,
+          listId: listId,
+          tags: [],
+        });
+
+        console.log("✅ Task created:", task);
+
+        // Generate friendly response
+        const confirmationPrompt = `User asked: "${message}"
+
+I successfully created a task:
+- Title: ${task.title}
+${task.due_date ? `- Due date: ${task.due_date}` : ""}
+${task.due_time ? `- Time: ${task.due_time}` : ""}
+- Priority: ${task.priority}/4
+
+Write a brief, friendly confirmation message (1-2 sentences). Be enthusiastic and encouraging.`;
+
+        const confirmation = await generateGeminiResponse(
+          confirmationPrompt,
+          ""
+        );
+
+        return Response.json({
+          message: confirmation.text,
+          taskCreated: {
+            id: task.id,
+            title: task.title,
+            dueDate: task.due_date,
+            dueTime: task.due_time,
+            priority: task.priority,
+          },
+          usage: confirmation.usage,
+        });
+      } catch (error) {
+        console.error("❌ Task creation error:", error);
+
+        return Response.json({
+          message: `I understood you want to create a task, but encountered an error: ${error.message}. Could you try again with more details?`,
+          error: error.message,
+        });
+      }
+    }
+
+    // Step 3: Normal chat response (no task creation)
+    const chatPrompt = `${systemContext}\n\nUser: ${message}\n\nProvide a helpful, concise response (2-3 sentences max). Be friendly and actionable.`;
+
+    const result = await generateGeminiResponse(chatPrompt, "");
 
     return Response.json({
       message: result.text,
@@ -59,8 +178,7 @@ Guidelines:
 
     return Response.json(
       {
-        error:
-          "AI service is temporarily unavailable. Please try again in a moment.",
+        error: "AI service is temporarily unavailable. Please try again.",
         details:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       },
@@ -70,11 +188,10 @@ Guidelines:
 }
 
 /**
- * GET: Generate task suggestions
+ * GET: Generate task suggestions (unchanged)
  */
 export async function GET(request) {
   try {
-    // Authenticate user
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
     const user = await getUserFromToken(token);
 
@@ -82,12 +199,10 @@ export async function GET(request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Parse query parameters
     const { searchParams } = new URL(request.url);
     const tasksParam = searchParams.get("tasks");
     const tasks = tasksParam ? JSON.parse(tasksParam) : [];
 
-    // Handle empty task list
     if (tasks.length === 0) {
       return Response.json({
         suggestions:
@@ -95,44 +210,25 @@ export async function GET(request) {
       });
     }
 
-    // Build task summary for AI
     const taskSummary = tasks
-      .slice(0, 10) // Limit to first 10 tasks to avoid token limits
+      .slice(0, 10)
       .map((task, index) => {
         const parts = [`${index + 1}. "${task.title}"`];
-
-        if (task.due_date) {
-          parts.push(`Due: ${task.due_date}`);
-        }
-
-        if (task.priority && task.priority > 1) {
+        if (task.due_date) parts.push(`Due: ${task.due_date}`);
+        if (task.priority && task.priority > 1)
           parts.push(`Priority: ${task.priority}/4`);
-        }
-
         return parts.join(" | ");
       })
       .join("\n");
 
-    const systemContext = `You are an expert productivity and time management assistant.
-
-Analyze the user's task list and provide 3-5 specific, actionable suggestions.
-
-Focus areas:
-1. Priority management (urgent vs important)
-2. Time blocking strategies
-3. Task breakdown (if any task seems too large)
-4. Work-life balance
-5. Avoiding overwhelm
-
-Format: Provide a numbered list of practical suggestions with brief explanations.`;
+    const systemContext = `You are a productivity assistant. Analyze the task list and provide 3-5 specific, actionable suggestions for better time management. Use a numbered list format.`;
 
     const userMessage = `Here are my upcoming tasks:\n\n${taskSummary}\n\nTotal: ${
       tasks.length
     } task${
       tasks.length === 1 ? "" : "s"
-    }\n\nPlease analyze and give me specific suggestions to manage these effectively.`;
+    }\n\nGive me specific suggestions to manage these effectively.`;
 
-    // Call Gemini API
     const result = await generateGeminiResponse(userMessage, systemContext);
 
     return Response.json({
@@ -144,7 +240,7 @@ Format: Provide a numbered list of practical suggestions with brief explanations
 
     return Response.json(
       {
-        error: "Failed to generate suggestions. Please try again.",
+        error: "Failed to generate suggestions.",
         details:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       },
