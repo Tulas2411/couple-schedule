@@ -6,10 +6,11 @@ import TaskList from "@/components/TaskList";
 import TaskModal from "@/components/TaskModal";
 import CalendarView from "@/components/CalendarView";
 import AIAssistant from "@/components/AIAssistant";
-import { Calendar, List, Sparkles, LogOut } from "lucide-react";
+import { Calendar, List, Sparkles } from "lucide-react";
 import "@/styles/dashboard.css";
 import "@/styles/calendar.css";
 import "@/styles/ai-assistant.css";
+import "@/styles/partner.css"; // NEW
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState([]);
@@ -23,10 +24,10 @@ export default function Dashboard() {
   const [showAI, setShowAI] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [partner, setPartner] = useState(null); // NEW
   const router = useRouter();
 
   useEffect(() => {
-    // Check authentication
     const token = localStorage.getItem("token");
     const userData = localStorage.getItem("user");
 
@@ -157,6 +158,13 @@ export default function Dashboard() {
     setShowModal(true);
   }
 
+  // NEW: Callback khi partner được link/unlink
+  function handlePartnerLinked(partnerData) {
+    setPartner(partnerData);
+    // Refresh tasks để hiển thị tasks của partner
+    fetchTasks();
+  }
+
   if (loading) {
     return (
       <div className="dashboard">
@@ -186,6 +194,7 @@ export default function Dashboard() {
         onRefreshLists={fetchLists}
         user={user}
         onLogout={handleLogout}
+        onPartnerLinked={handlePartnerLinked} // NEW
       />
 
       <div className="main-content">
@@ -194,6 +203,8 @@ export default function Dashboard() {
             <h2 className="filter-title">{getFilterTitle()}</h2>
             <p className="task-count-subtitle">
               {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
+              {partner &&
+                ` • Sharing with ${partner.fullName || partner.email}`}
             </p>
           </div>
           <div className="header-actions">
@@ -277,7 +288,7 @@ export default function Dashboard() {
         <AIAssistant
           tasks={tasks}
           onClose={() => setShowAI(false)}
-          onTaskCreated={fetchTasks} // ✅ Thêm callback để refresh tasks
+          onTaskCreated={fetchTasks}
         />
       )}
     </div>

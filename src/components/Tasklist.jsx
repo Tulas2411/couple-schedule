@@ -1,5 +1,12 @@
 "use client";
-import { Circle, CheckCircle2, Calendar, Flag, Inbox } from "lucide-react";
+import {
+  Circle,
+  CheckCircle2,
+  Calendar,
+  Flag,
+  Inbox,
+  User,
+} from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 export default function TaskList({ tasks, onRefresh, onEdit }) {
@@ -52,7 +59,12 @@ export default function TaskList({ tasks, onRefresh, onEdit }) {
     }
   }
 
-  async function deleteTask(id) {
+  async function deleteTask(id, isOwnTask) {
+    if (!isOwnTask) {
+      alert("Only the task owner can delete this task");
+      return;
+    }
+
     if (!confirm("Delete this task?")) return;
 
     try {
@@ -96,13 +108,13 @@ export default function TaskList({ tasks, onRefresh, onEdit }) {
   function getPriorityColor(priority) {
     switch (priority) {
       case 4:
-        return "#ef4444"; // red
+        return "#ef4444";
       case 3:
-        return "#f59e0b"; // orange
+        return "#f59e0b";
       case 2:
-        return "#3b82f6"; // blue
+        return "#3b82f6";
       default:
-        return "#6b7280"; // gray
+        return "#6b7280";
     }
   }
 
@@ -141,7 +153,6 @@ export default function TaskList({ tasks, onRefresh, onEdit }) {
     }
   }
 
-  // Group tasks by sections
   const overdueTasks = tasks.filter(
     (t) => !t.completed && isOverdue(t.due_date)
   );
@@ -152,7 +163,6 @@ export default function TaskList({ tasks, onRefresh, onEdit }) {
 
   return (
     <div className="task-list">
-      {/* Overdue Section */}
       {overdueTasks.length > 0 && (
         <div className="task-section">
           <div className="section-header">
@@ -174,11 +184,10 @@ export default function TaskList({ tasks, onRefresh, onEdit }) {
         </div>
       )}
 
-      {/* Today/Main Section */}
       {todayTasks.length > 0 && (
         <div className="task-section">
           <div className="section-header">
-            <h3 className="section-title">Today's Habit</h3>
+            <h3 className="section-title">Today's Tasks</h3>
             <span className="section-count">{todayTasks.length}</span>
           </div>
           {todayTasks.map((task) => (
@@ -196,7 +205,6 @@ export default function TaskList({ tasks, onRefresh, onEdit }) {
         </div>
       )}
 
-      {/* Completed Section */}
       {completedTasks.length > 0 && (
         <div className="task-section completed-section">
           <div className="section-header">
@@ -238,7 +246,11 @@ function TaskItem({
   isOverdue,
 }) {
   return (
-    <div className={`task-item ${task.completed ? "completed" : ""}`}>
+    <div
+      className={`task-item ${task.completed ? "completed" : ""} ${
+        !task.isOwnTask ? "partner-task" : ""
+      }`}
+    >
       <div className="task-checkbox" onClick={() => onToggle(task)}>
         {task.completed ? (
           <CheckCircle2 size={20} className="check-icon completed" />
@@ -252,7 +264,22 @@ function TaskItem({
       </div>
 
       <div className="task-content" onClick={() => onEdit(task)}>
-        <div className="task-title">{task.title}</div>
+        <div className="task-title-row">
+          <div className="task-title">{task.title}</div>
+          {!task.isOwnTask && (
+            <div
+              className="task-owner-badge"
+              title={`Created by ${task.ownerName}`}
+            >
+              {task.ownerAvatar ? (
+                <img src={task.ownerAvatar} alt={task.ownerName} />
+              ) : (
+                <User size={12} />
+              )}
+              <span>{task.ownerName}</span>
+            </div>
+          )}
+        </div>
         <div className="task-meta">
           {task.description && (
             <span className="task-description">{task.description}</span>
@@ -271,15 +298,17 @@ function TaskItem({
         </div>
       </div>
 
-      <button
-        className="task-delete"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(task.id);
-        }}
-      >
-        ×
-      </button>
+      {task.isOwnTask && (
+        <button
+          className="task-delete"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(task.id, task.isOwnTask);
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }

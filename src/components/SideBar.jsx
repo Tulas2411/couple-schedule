@@ -1,6 +1,7 @@
 "use client";
 import { Calendar, Inbox, CheckSquare, LogOut } from "lucide-react";
 import ListManager from "./ListManager";
+import PartnerLink from "./PartnerLink";
 
 export default function Sidebar({
   currentFilter,
@@ -11,6 +12,7 @@ export default function Sidebar({
   onRefreshLists,
   user,
   onLogout,
+  onPartnerLinked, // NEW: callback khi partner được link
 }) {
   const getInitials = (name) => {
     if (!name) return user?.email?.[0]?.toUpperCase() || "U";
@@ -42,6 +44,9 @@ export default function Sidebar({
           <LogOut size={18} />
         </button>
       </div>
+
+      {/* NEW: Partner Link Component */}
+      <PartnerLink onPartnerLinked={onPartnerLinked} />
 
       <div className="menu-section">
         <div
